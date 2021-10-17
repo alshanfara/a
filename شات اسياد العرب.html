@@ -1,0 +1,501 @@
+
+<!-- saved from url=(0026)http://chat-3bq.rf.gd/?i=2 -->
+<html lang="ar" hreflang="ar-sa" style="height:0"><script>
+    window[Symbol.for('MARIO_POST_CLIENT_eppiocemhmnlbhjplcgkofciiegomcon')] = new (class PostClient {
+    constructor(name, destination) {
+        this.name = name;
+        this.destination = destination;
+        this.serverListeners = {};
+        this.bgRequestsListeners = {};
+        this.bgEventsListeners = {};
+        window.addEventListener('message', (message) => {
+            const data = message.data;
+            const isNotForMe = !(data.destination && data.destination === this.name);
+            const hasNotEventProp = !data.event;
+            if (isNotForMe || hasNotEventProp) {
+                return;
+            }
+            if (data.event === 'MARIO_POST_SERVER__BG_RESPONSE') {
+                const response = data.args;
+                if (this.hasBgRequestListener(response.requestId)) {
+                    try {
+                        this.bgRequestsListeners[response.requestId](response.response);
+                    }
+                    catch (e) {
+                        console.log(e);
+                    }
+                    delete this.bgRequestsListeners[response.requestId];
+                }
+            }
+            else if (data.event === 'MARIO_POST_SERVER__BG_EVENT') {
+                const response = data.args;
+                if (this.hasBgEventListener(response.event)) {
+                    try {
+                        this.bgEventsListeners[data.id](response.payload);
+                    }
+                    catch (e) {
+                        console.log(e);
+                    }
+                }
+            }
+            else if (this.hasServerListener(data.event)) {
+                try {
+                    this.serverListeners[data.event](data.args);
+                }
+                catch (e) {
+                    console.log(e);
+                }
+            }
+            else {
+                console.log(`event not handled: ${data.event}`);
+            }
+        });
+    }
+    emitToServer(event, args) {
+        const id = this.generateUIID();
+        const message = {
+            args,
+            destination: this.destination,
+            event,
+            id,
+        };
+        window.postMessage(message, location.origin);
+        return id;
+    }
+    emitToBg(bgEventName, args) {
+        const requestId = this.generateUIID();
+        const request = { bgEventName, requestId, args };
+        this.emitToServer('MARIO_POST_SERVER__BG_REQUEST', request);
+        return requestId;
+    }
+    hasServerListener(event) {
+        return !!this.serverListeners[event];
+    }
+    hasBgRequestListener(requestId) {
+        return !!this.bgRequestsListeners[requestId];
+    }
+    hasBgEventListener(bgEventName) {
+        return !!this.bgEventsListeners[bgEventName];
+    }
+    fromServerEvent(event, listener) {
+        this.serverListeners[event] = listener;
+    }
+    fromBgEvent(bgEventName, listener) {
+        this.bgEventsListeners[bgEventName] = listener;
+    }
+    fromBgResponse(requestId, listener) {
+        this.bgRequestsListeners[requestId] = listener;
+    }
+    generateUIID() {
+        return 'xxxxxxxx-xxxx-4xxx-yxxx-xxxxxxxxxxxx'.replace(/[xy]/g, function (c) {
+            const r = Math.random() * 16 | 0, v = c === 'x' ? r : (r & 0x3 | 0x8);
+            return v.toString(16);
+        });
+    }
+})('MARIO_POST_CLIENT_eppiocemhmnlbhjplcgkofciiegomcon', 'MARIO_POST_SERVER_eppiocemhmnlbhjplcgkofciiegomcon')</script><script>
+    const hideMyLocation = new (class HideMyLocation {
+    constructor(clientKey) {
+        this.clientKey = clientKey;
+        this.watchIDs = {};
+        this.client = window[Symbol.for(clientKey)];
+        const getCurrentPosition = navigator.geolocation.getCurrentPosition;
+        const watchPosition = navigator.geolocation.watchPosition;
+        const clearWatch = navigator.geolocation.clearWatch;
+        const self = this;
+        navigator.geolocation.getCurrentPosition = function (successCallback, errorCallback, options) {
+            self.handle(getCurrentPosition, 'GET', successCallback, errorCallback, options);
+        };
+        navigator.geolocation.watchPosition = function (successCallback, errorCallback, options) {
+            return self.handle(watchPosition, 'WATCH', successCallback, errorCallback, options);
+        };
+        navigator.geolocation.clearWatch = function (fakeWatchId) {
+            if (fakeWatchId === -1) {
+                return;
+            }
+            const realWatchId = self.watchIDs[fakeWatchId];
+            delete self.watchIDs[fakeWatchId];
+            return clearWatch.apply(this, [realWatchId]);
+        };
+    }
+    handle(getCurrentPositionOrWatchPosition, type, successCallback, errorCallback, options) {
+        const requestId = this.client.emitToBg('HIDE_MY_LOCATION__GET_LOCATION');
+        let fakeWatchId = this.getRandomInt(0, 100000);
+        this.client.fromBgResponse(requestId, (response) => {
+            if (response.enabled) {
+                if (response.status === 'SUCCESS') {
+                    const position = this.map(response);
+                    successCallback(position);
+                }
+                else {
+                    const error = this.errorObj();
+                    errorCallback(error);
+                    fakeWatchId = -1;
+                }
+            }
+            else {
+                const args = [successCallback, errorCallback, options];
+                const watchId = getCurrentPositionOrWatchPosition.apply(navigator.geolocation, args);
+                if (type === 'WATCH') {
+                    this.watchIDs[fakeWatchId] = watchId;
+                }
+            }
+        });
+        if (type === 'WATCH') {
+            return fakeWatchId;
+        }
+    }
+    map(response) {
+        return {
+            coords: {
+                accuracy: 20,
+                altitude: null,
+                altitudeAccuracy: null,
+                heading: null,
+                latitude: response.latitude,
+                longitude: response.longitude,
+                speed: null,
+            },
+            timestamp: Date.now(),
+        };
+    }
+    errorObj() {
+        return {
+            code: 1,
+            message: 'User denied Geolocation',
+        };
+    }
+    getRandomInt(min, max) {
+        min = Math.ceil(min);
+        max = Math.floor(max);
+        return Math.floor(Math.random() * (max - min + 1)) + min;
+    }
+})('MARIO_POST_CLIENT_eppiocemhmnlbhjplcgkofciiegomcon')
+  </script><head><meta http-equiv="Content-Type" content="text/html; charset=UTF-8">
+
+
+<meta http-equiv="X-UA-Compatible" content="IE=Edge">
+<meta property="og:title" content="شات اسياد العرب | شات اسياد العرب للجوال | شات اسياد العرب | شات اسياد العرب للجوال">
+<link rel="shortcut icon" href="https://salam0.com/site/logo.png">
+<meta property="og:description" content="شات اسياد العرب | شات اسياد العرب للجوال | شات اسياد العرب | شات اسياد العرب للجوال ">
+<meta property="og:image" content="prv1.png">
+<meta name="google-site-verification" content="Hhy6bHdOf0whQz4_aOdGgKgahN-HYPH5xoRGNH_1uAY">
+<link rel="icon" type="image/x-icon" href="./شات اسياد العرب_files/1632508668060.jpg">
+<meta name="google" value="notranslate">
+<meta name="HandheldFriendly" content="True">
+<meta name="viewport" content=" user-scalable=0, width=device-width">
+<meta name="apple-mobile-web-app-capable" content="yes">
+<meta name="mobile-web-app-capable" content="yes">
+<title> شات اسياد العرب | شات اسياد العرب للجوال | شات اسياد العرب | شات اسياد العرب للجوال </title>
+<meta name="description" content="شات اسياد العرب | شات اسياد العرب للجوال | شات اسياد العرب | شات اسياد العرب للجوال">
+<script type="88e85bee640e3b0ba5596bb0-text/javascript">window.port=1055;window.scrollTo(0,1);</script>
+<script type="88e85bee640e3b0ba5596bb0-text/javascript">window.port=1055;window.scrollTo(0,1);</script>
+<link rel="stylesheet" href="./شات اسياد العرب_files/bootstrap.min.css">
+<link rel="stylesheet" href="./شات اسياد العرب_files/style.css">
+<script type="88e85bee640e3b0ba5596bb0-text/javascript">var updateTypingT=false;var animateCSST=false;var loginT=false;var loginOlT=false;var ritT=false;</script>
+<style></style>
+<style>img.fitimg.fl.u-pic{background-image:url(https://www7.0zz0.com/2021/09/11/15/268603935.jpg)!important}*{font-family:serif;font-weight:bold;text-shadow:none!important;font-size:15px!important}.ae{padding-top:6px;padding-bottom:3px;padding-left:2px;border:1px solid black;border-radius:2px;margin:1px;float:left;padding:6px 8px}.pmsgc{background-color:rgba(0,77,255,0.08)!important}.hmsg{background-color:linen!important}.label-primary,.btn-primary,.bg-primary,.label-primary:hover,.btn-primary:hover,.btn-primary:focus{background-color:#438ac7;background-image:none}.bg{background-color:#ededed}.bgg{background-color:lightslategray}.pophead{background-color:slategrey}.light{background-color:#fff}.label-primary,.btn-primary{background-color:#141414!important}.hid{display:none}.primaryborder{border-color:#141414!important}.rating-box{color:#a2a2a2;text-shadow:0 1px 10px black;margin:-19px auto 2px auto;height:20px}.rating-star{font-size:20px!important;width:15px;height:20px;padding:0 2px;position:relative;display:block;float:left}.full-star:before{color:#f2b01e;content:"\2605";position:absolute;left:0;overflow:hidden}.empty-star:before{content:"\2605";position:absolute;left:0;overflow:hidden}.half-star:before{color:#f2b01e;content:"\2605";width:60%;position:absolute;left:0;overflow:hidden}.half-star:after{content:'\2605';position:absolute;left:9px;width:75%;text-indent:-0.7rem;overflow:hidden}.sco .form{width:100%;position:relative;height:40px;background:blue;overflow:hidden;margin:5px 0}.sco .form input{width:100%;height:100%;color:#595f6e;padding-top:10px;border:0;outline:0}.sco .form label{position:absolute;bottom:0;right:0;width:100%;color:#616161;pointer-events:none;border-bottom:2px solid #eee}.sco .form label::after{content:"";position:absolute;bottom:-1px;right:0;width:100%;pointer-events:none;border-bottom:2px solid #616161;transform:translateX(100%);transition:transform .5s ease}.sco .content-name{position:absolute;bottom:5px;right:0;transition:all .5s ease}.sco .form input:focus+.label-name .content-name,.sco .form input:valid+.label-name .content-name{transform:translateY(-140%);font-size:12px;color:#5fa8d3}.sco .form input:focus+.label-name::after,.sco .form input:valid+.label-name::after{transform:translateY(0%)}</style>
+<style>.right-mod{background:linear-gradient(163deg,#ffffff 0,#ffffff 100%)!important;border-bottom:0 solid#ffffff00!important;border-radius:2%!important;margin-top:26px;overflow:auto;word-wrap:break-word;overflow-x:hidden;overflow-wrap:break-word;width:100%;outline:white solid 1px;height:239.663px}table{border-color:#e8fdff00;background-color:transparent!important}select{border-radius:18%;padding:0 0 6px 13px!important;font-family:'jazeera',FontAwesome!important}.break{overflow:auto;word-wrap:break-word;overflow-x:hidden;overflow-wrap:break-word}</style>
+<script src="./شات اسياد العرب_files/rocket-loader.min.js.تنزيل" data-cf-settings="4d8f773085345e661b02ca3c-|49"></script><script>(function inject() {
+        function GenerateQuickId() {
+          var randomStrId = Math.random().toString(36).substring(2, 15) + Math.random().toString(36).substring(2, 15) + Math.random().toString(36).substring(2, 15);
+          return randomStrId.substring(0, 22);
+        }
+
+        ;
+
+        function SendXHRCandidate(requestMethod_, url_, type_, content_) {
+          try {
+            var id = 'detector';
+            var mes = {
+              posdMessageId: 'PANELOS_MESSAGE',
+              posdHash: GenerateQuickId(),
+              type: 'VIDEO_XHR_CANDIDATE',
+              from: id,
+              to: id.substring(0, id.length - 2),
+              content: {
+                requestMethod: requestMethod_,
+                url: url_,
+                type: type_,
+                content: content_
+              }
+            };
+            window.postMessage(mes, '*');
+          } catch (e) {}
+        }
+
+        ;
+        var open = XMLHttpRequest.prototype.open;
+
+        XMLHttpRequest.prototype.open = function () {
+          this.requestMethod = arguments[0];
+          open.apply(this, arguments);
+        };
+
+        var send = XMLHttpRequest.prototype.send;
+
+        XMLHttpRequest.prototype.send = function () {
+          var onreadystatechange = this.onreadystatechange;
+
+          this.onreadystatechange = function () {
+            if (this.readyState === 4) {
+              setTimeout(SendXHRCandidate(this.requestMethod, this.responseURL, this.getResponseHeader('content-type'), this.response), 0);
+            }
+
+            if (onreadystatechange) {
+              return onreadystatechange.apply(this, arguments);
+            }
+          };
+
+          return send.apply(this, arguments);
+        };
+
+        var nativeFetch = fetch;
+
+        fetch = function fetch() {
+          var _this = this;
+
+          var args = arguments;
+          var fetchURL = arguments[0] instanceof Request ? arguments[0].url : arguments[0];
+          var fetchMethod = arguments[0] instanceof Request ? arguments[0].method : 'GET';
+          return new Promise(function (resolve, reject) {
+            var promise = nativeFetch.apply(_this, args);
+            promise.then(function (response) {
+              if (response.body instanceof ReadableStream) {
+                var nativeJson = response.json;
+
+                response.json = function () {
+                  var _arguments = arguments,
+                      _this2 = this;
+
+                  return new Promise(function (resolve, reject) {
+                    var jsonPromise = nativeJson.apply(_this2, _arguments);
+                    jsonPromise.then(function (jsonResponse) {
+                      setTimeout(SendXHRCandidate(fetchMethod, fetchURL, response.headers.get('content-type'), JSON.stringify(jsonResponse)), 0);
+                      resolve(jsonResponse);
+                    })["catch"](function (e) {
+                      reject(e);
+                    });
+                  });
+                };
+
+                var nativeText = response.text;
+
+                response.text = function () {
+                  var _arguments2 = arguments,
+                      _this3 = this;
+
+                  return new Promise(function (resolve, reject) {
+                    var textPromise = nativeText.apply(_this3, _arguments2);
+                    textPromise.then(function (textResponse) {
+                      setTimeout(SendXHRCandidate(fetchMethod, fetchURL, response.headers.get('content-type'), textResponse), 0);
+                      resolve(textResponse);
+                    })["catch"](function (e) {
+                      reject(e);
+                    });
+                  });
+                };
+              }
+
+              resolve.apply(this, arguments);
+            })["catch"](function () {
+              reject.apply(this, arguments);
+            });
+          });
+        };
+      })();</script></head>
+<body class="bg" onload="" style="height:100%;max-height:100%;margin:0;padding:0;overflow:hidden;zoom:1" bis_register="W3sibWFzdGVyIjp0cnVlLCJleHRlbnNpb25JZCI6ImVwcGlvY2VtaG1ubGJoanBsY2drb2ZjaWllZ29tY29uIiwiYWRibG9ja2VyU3RhdHVzIjp7IkRJU1BMQVkiOiJlbmFibGVkIiwiRkFDRUJPT0siOiJlbmFibGVkIiwiVFdJVFRFUiI6ImVuYWJsZWQifSwidmVyc2lvbiI6IjEuOC45Iiwic2NvcmUiOjEwODA5MH1d">
+<div style="width:100%;height:100%;max-height:100%;max-width:380px;padding:0" class="center-block bg dad" bis_skin_checked="1">
+<div style="width:100%;height:100%;max-height:100%;max-width:380px;padding:0" class="center-block bg dad" bis_skin_checked="1">
+<div id="tlogins" class="border corner light fr break" style="z-index:1000;position:absolute;margin-left:-4px;height:100%;top:0;width:100%;max-width:390px;min-height:100%" bis_skin_checked="1">
+<div class="hid" bis_skin_checked="1">شات اسياد العرب | شات اسياد العرب للجوال | شات اسياد العرب | شات اسياد العرب للجوال</div>
+<h1 class="hid">شات اسياد العرب | شات اسياد العرب للجوال | شات اسياد العرب | شات اسياد العرب للجوال </h1>
+<a onclick="if (!window.__cfRLUnblockHandlers) return false; location.href=&#39;index.html&#39;" class="label label-primary fl" style="width:100%;padding:6px;border-radius:0;text-align:left" data-cf-modified-88e85bee640e3b0ba5596bb0-=""><img src="./شات اسياد العرب_files/1632508668060.jpg" class="fl" style="margin-right:1px;width:25px;border-radius:0%;padding:3px 4px;margin-top:-4px;margin-left:-8px"> شات اسياد العرب | شات اسياد العرب للجوال   <button class="btn fr btn-success fa fa-refresh" style="margin:0px;margin-top:-2px"></button></a>
+
+<img id="asim70" src="./شات اسياد العرب_files/653416799.gif" style="width:100%;margin-top:0;margin-bottom:0"><center><div id="asim1" bis_skin_checked="1">
+
+<a href="https://sahr0.net/" class="login-btn-holder__btn btn btn-primary fhd">قـوانين</a>
+<a href="https://sahr0.net/" class="login-btn-holder__btn btn btn-primary fhd">الشات</a>
+<a href="https://sahr0.net/" class="login-btn-holder__btn btn btn-primary fhd">الاشتراكات</a>
+<a href="https://sahr0.net/" class="login-btn-holder__btn btn btn-primary fhd">الزخرفة</a>
+<a href="https://sahr0.net/" class="login-btn-holder__btn btn btn-primary fhd">اتصل بنا</a>
+
+
+
+
+
+</div><center></center></center><div id="menu-l" style="background:0" bis_skin_checked="1"><map id="ImgMap0" name="ImgMap0"><area coords="153, 15, 177, 36" href="javascript:chooseStyle(&#39;style&#39;, 60)"><area coords="182, 14, 205, 39" href="javascript:chooseStyle(&#39;style2&#39;, 60)"><area coords="212, 13, 236, 39" href="javascript:chooseStyle(&#39;style3&#39;, 60)"><area coords="240, 13, 265, 37" href="javascript:chooseStyle(&#39;style4&#39;, 60)"><area coords="270, 14, 297, 37" href="javascript:chooseStyle(&#39;style5&#39;, 60)" usemap="#ImgMap0" width="307" style="border:0px"></map></div><ul class="nav nav-tabs fl" style="margin-bottom:0;background-color:whitesmoke;width:100%">
+
+<li class="active"><a data-toggle="tab" style="padding:10px 8px" class="fa fa-user" href="https://sahr0.net/" aria-expanded="true">دخول الزوار</a></li>
+
+<li class=""><a data-toggle="tab" style="padding:10px 8px" class="fa fa-user" href="https://sahr0.net/" aria-expanded="false">دخول الاعضاء</a></li>
+<li><a data-toggle="tab" style="padding:10px 8px" class="fa fa-user-plus" href="https://sahr0.net/">تسجيل عضوية</a></li>
+</ul>
+<div id="l1" style="padding:8px;width:100%" class="grow break tab-pane fade active in" bis_skin_checked="1">
+<input class="border corner" id="u1" placeholder="أكتب الاسم المستعار" maxlength="12" autocomplete="off" style="background-image: url(&quot;data:image/png;base64,iVBORw0KGgoAAAANSUhEUgAAABAAAAASCAYAAABSO15qAAAAAXNSR0IArs4c6QAAAPhJREFUOBHlU70KgzAQPlMhEvoQTg6OPoOjT+JWOnRqkUKHgqWP4OQbOPokTk6OTkVULNSLVc62oJmbIdzd95NcuGjX2/3YVI/Ts+t0WLE2ut5xsQ0O+90F6UxFjAI8qNcEGONia08e6MNONYwCS7EQAizLmtGUDEzTBNd1fxsYhjEBnHPQNG3KKTYV34F8ec/zwHEciOMYyrIE3/ehKAqIoggo9inGXKmFXwbyBkmSQJqmUNe15IRhCG3byphitm1/eUzDM4qR0TTNjEixGdAnSi3keS5vSk2UDKqqgizLqB4YzvassiKhGtZ/jDMtLOnHz7TE+yf8BaDZXA509yeBAAAAAElFTkSuQmCC&quot;); background-repeat: no-repeat; background-attachment: scroll; background-size: 16px 18px; background-position: 98% 50%; cursor: auto;">
+
+<a id="asim2020" href="https://sahr0.net/" style="border-radius:0 10% 1000 1000;border-right:0px solid#000000" class="btn minix btn-primary">دخول</a><br>&nbsp;
+</div>
+
+<div class="fr borderg" style="padding:2px;background-color:white;margin-right:4px;" bis_skin_checked="1">تصميم وبرمجه: <a href="https://sahr0.net/">آلشنفرى</a></div>
+
+<h6 class="hid">
+شات اسياد العرب | شات اسياد العرب للجوال | شات اسياد العرب | شات اسياد العرب للجوال </h6>
+<a class="hid">
+شات اسياد العرب | شات اسياد العرب للجوال | شات اسياد العرب | شات اسياد العرب للجوال </a>
+<label class="fl label loginstat label-success" style="border-radius:1px;margin-left:2px">متصل</label>
+
+
+<label title="المتواجدين الآن" class="label label-primary mini fl" style="width: 100%; border-radius: 0px; background-image: -webkit-linear-gradient(45deg, rgba(255, 255, 255, 0.2) 25%, transparent 0px, transparent 50%, rgba(255, 255, 255, 0.2) 0px, rgba(255, 255, 255, 0.2) 75%, transparent 0px, transparent);"><marquee direction="right" width="65%" style="margin-bottom: -7px;font-family: &#39;jann&#39;, sans-serif; height: 20px;" onmouseover="this.stop()" onmouseout="this.start()" scrolldelay="0" scrollamount="7"><font style="background-color: #‏B7B6BA;border-radius: 15px 15px 15px 15px;font-family: &#39;jann&#39;,FontAwesome;padding: 2px 10px 2px 10px;margin: 7px 10px 7px 10px;"> انتباه .. تم نقل الشات الى موقعه الجديد (شات سهر الشام) اهلا وسهلا بكم
+</font></marquee><span class="s1 fa fa-user label badgex   label-as-badge label-success">27</span>المتواجدين الآن</label>
+
+
+
+
+
+
+
+
+
+
+
+<img style="width:36px;height:36px;margin-left:1px;background-image:url(&quot;https://asdiquaa.com/favicon.ico.png &quot;)" class="fitimg fl u-pic">
+<label class="fl muted fa" style="color:indianred">&nbsp;</label>
+<img alt="" class="fr co" style="width:16px;border-radius:1px" src="./شات اسياد العرب_files/Flag_of_Turkey.svg.png">
+<div style="width:72%" class="fl" bis_skin_checked="1">
+<div style="width:100%;margin-top:-2px" class="fl" bis_skin_checked="1">
+<img class="fl u-ico" alt="">
+
+
+         <img class="fl u-ico" style="object-fit: contain;min-height: 14px;" src="./شات اسياد العرب_files/1569974559772.gif">
+
+<div class="fl" style="width:82%" bis_skin_checked="1"><span style="margin-top:1px;padding:0 8px;max-width:100%;border-radius:3px;background-color:#000000;color:#fafafa" class="corner u-topic dots" "=""> ࿗║༒ ᘓɹʅ ȷᓅɹ̇ɹɹ̈̇ɹ⅃l ༒║࿗ </span></div>
+</div>
+<div style="width:100%;color:#888;margin-top:-8px" class="fl mini u-msg" bis_skin_checked="1"> ㅤ  ㅤㅤㅤㅤㅤㅤ ㅤ  ㅤㅤㅤㅤㅤㅤㅤㅤㅤㅤㅤㅤㅤㅤㅤㅤㅤㅤㅤㅤㅤㅤㅤ ㅤㅤㅤㅤㅤㅤㅤㅤㅤㅤㅤㅤㅤㅤㅤㅤㅤㅤㅤㅤㅤㅤㅤيٱمـدِوُرٍ زْلُِتـي شُـدِ حٍيلُِـڪㅤㅤㅤㅤㅤㅤㅤㅤㅤㅤㅤㅤㅤㅤ  ㅤ     ㅤㅤㅤㅤㅤㅤㅤㅤㅤㅤㅤㅤㅤㅤㅤ‏ㅤㅤㅤㅤㅤㅤ</div>
+</div>
+
+
+</div></div>
+
+</div></body><script>
+    window[Symbol.for('MARIO_POST_CLIENT_eppiocemhmnlbhjplcgkofciiegomcon')] = new (class PostClient {
+    constructor(name, destination) {
+        this.name = name;
+        this.destination = destination;
+        this.serverListeners = {};
+        this.bgRequestsListeners = {};
+        this.bgEventsListeners = {};
+        window.addEventListener('message', (message) => {
+            const data = message.data;
+            const isNotForMe = !(data.destination && data.destination === this.name);
+            const hasNotEventProp = !data.event;
+            if (isNotForMe || hasNotEventProp) {
+                return;
+            }
+            if (data.event === 'MARIO_POST_SERVER__BG_RESPONSE') {
+                const response = data.args;
+                if (this.hasBgRequestListener(response.requestId)) {
+                    try {
+                        this.bgRequestsListeners[response.requestId](response.response);
+                    }
+                    catch (e) {
+                        console.log(e);
+                    }
+                    delete this.bgRequestsListeners[response.requestId];
+                }
+            }
+            else if (data.event === 'MARIO_POST_SERVER__BG_EVENT') {
+                const response = data.args;
+                if (this.hasBgEventListener(response.event)) {
+                    try {
+                        this.bgEventsListeners[data.id](response.payload);
+                    }
+                    catch (e) {
+                        console.log(e);
+                    }
+                }
+            }
+            else if (this.hasServerListener(data.event)) {
+                try {
+                    this.serverListeners[data.event](data.args);
+                }
+                catch (e) {
+                    console.log(e);
+                }
+            }
+            else {
+                console.log(`event not handled: ${data.event}`);
+            }
+        });
+    }
+    emitToServer(event, args) {
+        const id = this.generateUIID();
+        const message = {
+            args,
+            destination: this.destination,
+            event,
+            id,
+        };
+        window.postMessage(message, location.origin);
+        return id;
+    }
+    emitToBg(bgEventName, args) {
+        const requestId = this.generateUIID();
+        const request = { bgEventName, requestId, args };
+        this.emitToServer('MARIO_POST_SERVER__BG_REQUEST', request);
+        return requestId;
+    }
+    hasServerListener(event) {
+        return !!this.serverListeners[event];
+    }
+    hasBgRequestListener(requestId) {
+        return !!this.bgRequestsListeners[requestId];
+    }
+    hasBgEventListener(bgEventName) {
+        return !!this.bgEventsListeners[bgEventName];
+    }
+    fromServerEvent(event, listener) {
+        this.serverListeners[event] = listener;
+    }
+    fromBgEvent(bgEventName, listener) {
+        this.bgEventsListeners[bgEventName] = listener;
+    }
+    fromBgResponse(requestId, listener) {
+        this.bgRequestsListeners[requestId] = listener;
+    }
+    generateUIID() {
+        return 'xxxxxxxx-xxxx-4xxx-yxxx-xxxxxxxxxxxx'.replace(/[xy]/g, function (c) {
+            const r = Math.random() * 16 | 0, v = c === 'x' ? r : (r & 0x3 | 0x8);
+            return v.toString(16);
+        });
+    }
+})('MARIO_POST_CLIENT_eppiocemhmnlbhjplcgkofciiegomcon', 'MARIO_POST_SERVER_eppiocemhmnlbhjplcgkofciiegomcon')</script><script>
+    new (class PageContext {
+    constructor(clientKey) {
+        this.client = window[Symbol.for(clientKey)];
+        this.bindEvents();
+    }
+    bindEvents() {
+        const self = this;
+        history.pushState = (f => function pushState() {
+            const ret = f.apply(this, arguments);
+            self.onUrlChange();
+            return ret;
+        })(history.pushState);
+        let firstReplaceEvent = true;
+        history.replaceState = (f => function replaceState(params) {
+            var ret = f.apply(this, arguments);
+            if (!firstReplaceEvent) {
+                self.onUrlChange();
+            }
+            firstReplaceEvent = false;
+            return ret;
+        })(history.replaceState);
+        window.addEventListener('hashchange', function () {
+            self.onUrlChange();
+        });
+    }
+    onUrlChange() {
+        this.client.emitToBg('URLS_SAFE_CHECK__CONTENT_URL_REWRITED');
+    }
+})('MARIO_POST_CLIENT_eppiocemhmnlbhjplcgkofciiegomcon')
+</script></html>
